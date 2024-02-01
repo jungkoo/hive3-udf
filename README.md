@@ -25,4 +25,7 @@ CREATE TEMPORARY FUNCTION array_min as 'org.apache.hadoop.hive.ql.udf.generic.Ge
 CREATE TEMPORARY FUNCTION array_remove as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFArrayRemove';
 CREATE TEMPORARY FUNCTION array_slice as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFArraySlice';
 CREATE TEMPORARY FUNCTION array_union as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFArrayUnion';
+
+-- hive complex  
+CREATE TEMPORARY FUNCTION json_read as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFJsonRead';
 ```
