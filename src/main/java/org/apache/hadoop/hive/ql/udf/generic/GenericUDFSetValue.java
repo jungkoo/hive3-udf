@@ -2,12 +2,11 @@ package org.apache.hadoop.hive.ql.udf.generic;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.*;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter.TextConverter;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 import java.util.*;
 
@@ -26,20 +25,34 @@ public class GenericUDFSetValue extends GenericUDF {
 
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
-        checkArgsSize(arguments, 3, 3);
-        checkArgPrimitive(arguments, 1); // KEY
-        checkArgPrimitive(arguments, 2); // NEW VALUE
-        sourceInspector = arguments[0];
-        ObjectInspector newValueInspector = arguments[2];
+        int numFields = arguments.length;
+        if (numFields % 2 == 0) {
+            throw new UDFArgumentException(
+                    "set_value expects an odd number of arguments.");
+        }
 
+        // source
+        sourceInspector = arguments[0];
         if (sourceInspector.getCategory() != STRUCT) {
             throw new UDFArgumentException("source is not struct type : {category:"
                     + sourceInspector.getCategory() +",typeName: "+sourceInspector.getTypeName()+"}");
         }
-        if (newValueInspector.getCategory() != PRIMITIVE) {
-            throw new UDFArgumentException("new value is not primitive type : " + newValueInspector.getTypeName());
+
+        // key, value
+        for (int f = 1; f < numFields; f+=2) {
+            ObjectInspector ki = arguments[f];
+            ObjectInspector vi = arguments[f+1];
+
+            System.out.println(ki.getTypeName());
+            if ( ki.getCategory() != PRIMITIVE || TypeInfoFactory.stringTypeInfo.getTypeName() != ki.getTypeName()) {
+                throw new UDFArgumentException("find key  : " + ki.getTypeName());
+            }
+            if ( vi.getCategory() != PRIMITIVE) {
+                throw new UDFArgumentException("new value is not PRIMITIVE type : " + vi.getTypeName());
+            }
         }
-        keysConverter  = new TextConverter((PrimitiveObjectInspector) arguments[1]);
+
+        keysConverter  = new TextConverter(PrimitiveObjectInspectorFactory.writableStringObjectInspector);
         return sourceInspector;
     }
 
@@ -87,6 +100,10 @@ public class GenericUDFSetValue extends GenericUDF {
 
             if (matchValue.containsKey(fullKey.toLowerCase())) { // 맵칭된 값과 동일
                 value = matchValue.get(fullKey.toLowerCase());
+                if (value != null && sf.getFieldObjectInspector().getCategory() != PRIMITIVE) {
+                    throw new HiveException(fullKey + " type miss (support primitive only) : "
+                            + sf.getFieldObjectInspector().getTypeName());
+                }
             } else {
                 value = soi.getStructFieldData(node, sf);
             }
