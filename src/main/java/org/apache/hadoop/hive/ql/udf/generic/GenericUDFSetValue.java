@@ -52,28 +52,26 @@ public class GenericUDFSetValue extends GenericUDF {
 
         String[] keys = keysConverter.convert(arguments[1].get()).toString().split("\\.");
         Object newValue = arguments[2].get();
-        if (!(source instanceof List)) {
-            throw new HiveException("source is not List : " + source.getClass());
-        }
-        Object cloneSource = deepCopyList((List<Object>)source);
+
         StructObjectInspector soi = (StructObjectInspector)sourceInspector;
         Iterator<String> keyIterator = Arrays.asList(keys).iterator();
-        return setValue(soi, cloneSource, keyIterator, newValue);
+        Object convertList = convertValue(source, soi);
+        if (convertList instanceof List) {
+            return setValue(soi, (List<Object>)convertList, keyIterator, newValue);
+        } else {
+            throw new HiveException("ConvertValue is Not List !!");
+        }
     }
 
-
-
-    private Object setValue(StructObjectInspector soi, Object source, Iterator<String> keyIterator, Object newValue) throws HiveException{
-        final List<Object> sourceList = (List<Object>)source;
+    private List<Object> setValue(StructObjectInspector soi, List<Object> sourceList, Iterator<String> keyIterator, Object newValue) throws HiveException{
         final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
         final int size = sfs.size();
         final String k;
         if (keyIterator.hasNext()) {
             k = keyIterator.next();
         } else {
-            throw new HiveException("not found key ");
+            throw new HiveException("not found key");
         }
-
 
         for(int idx = 0; idx<size; idx++) {
             final StructField sf = sfs.get(idx);
@@ -99,26 +97,29 @@ public class GenericUDFSetValue extends GenericUDF {
             if (!(csf instanceof StructObjectInspector)) {
                 throw new HiveException("children node is not StructObjectInspector Type : " + csf.getClass());
             }
-            sourceList.set(idx, setValue((StructObjectInspector)csf, child, keyIterator, newValue));
+            sourceList.set(idx, setValue((StructObjectInspector)csf, (List<Object>)child, keyIterator, newValue));
         }
-        return source;
+        return sourceList;
     }
-
-    private List<Object> deepCopyList(List<Object> node) {
+    
+    private Object convertValue(Object node, ObjectInspector inspector) throws HiveException {
         if (node == null) {
             return null;
         }
-        final int size = node.size();
-        final List<Object> clone = new ArrayList<>(size);
+        if (!(inspector instanceof StructObjectInspector)) {
+            return node;
+        }
+
+        final StructObjectInspector soi = (StructObjectInspector)inspector;
+        final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
+        final int size = sfs.size();
+        final List<Object> clone = Arrays.asList(new Object[size]);
+
         for(int i=0; i<size; i++) {
-            Object value = node.get(i);
-            if (value == null) {
-                clone.add(null);
-            } else if (value instanceof List) {
-                clone.add(deepCopyList((List<Object>)value));
-            } else {
-                clone.add(value);
-            }
+            final StructField sf = sfs.get(i);
+            final ObjectInspector childInspector = sf.getFieldObjectInspector();
+            final Object value = soi.getStructFieldData(node, sf);
+            clone.set(i, convertValue(value, childInspector));
         }
         return clone;
     }
