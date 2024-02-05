@@ -43,12 +43,11 @@ public class GenericUDFSetValue extends GenericUDF {
             ObjectInspector ki = arguments[f];
             ObjectInspector vi = arguments[f+1];
 
-            System.out.println(ki.getTypeName());
             if ( ki.getCategory() != PRIMITIVE || TypeInfoFactory.stringTypeInfo.getTypeName() != ki.getTypeName()) {
-                throw new UDFArgumentException("find key  : " + ki.getTypeName());
+                throw new UDFArgumentException("Find Key is not string type : " + ki.getTypeName());
             }
             if ( vi.getCategory() != PRIMITIVE) {
-                throw new UDFArgumentException("new value is not PRIMITIVE type : " + vi.getTypeName());
+                throw new UDFArgumentException("New Value is not Primitive type : " + vi.getTypeName());
             }
         }
 
@@ -58,18 +57,21 @@ public class GenericUDFSetValue extends GenericUDF {
 
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        Object source = arguments[0].get();
+        final Object source = arguments[0].get();
         if (source == null) {
             return null;
         }
 
-        final String findKey = keysConverter.convert(arguments[1].get()).toString();
-        final Object newValue = arguments[2].get();
+        final int numFields = arguments.length;
         final Map<String, Object> matchValue = new LinkedHashMap<>();
-        matchValue.put(findKey.toLowerCase(), newValue);
+        for (int f = 1; f < numFields; f+=2) {
+            final String findKey = keysConverter.convert(arguments[f].get()).toString();
+            final Object newValue = arguments[f + 1].get();
+            matchValue.put(findKey.toLowerCase(), newValue);
+        }
 
-        final StructObjectInspector soi = (StructObjectInspector) sourceInspector;
         try {
+            final StructObjectInspector soi = (StructObjectInspector) sourceInspector;
             return convertStructObject(source, soi, null, matchValue);
         } catch (HiveException e) {
             throw e;
