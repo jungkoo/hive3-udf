@@ -2,15 +2,15 @@ package org.apache.hadoop.hive.ql.udf.generic;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.io.orc.OrcRecordUpdater;
-import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
-import org.apache.hadoop.hive.ql.io.orc.OrcStructBox;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.*;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter.TextConverter;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 
 import java.util.*;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.PRIMITIVE;
 import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.STRUCT;
 
 @Description(name = "set_value",
@@ -34,6 +34,9 @@ public class GenericUDFSetValue extends GenericUDF {
             throw new UDFArgumentException("source is not struct type : {category:"
                     + sourceInspector.getCategory() +",typeName: "+sourceInspector.getTypeName()+"}");
         }
+        if (arguments[3].getCategory() != PRIMITIVE) {
+            throw new UDFArgumentException("new value is not primitive type : " + arguments[3].getTypeName());
+        }
         keysConverter  = new TextConverter((PrimitiveObjectInspector) arguments[1]);
         return sourceInspector;
     }
@@ -53,13 +56,15 @@ public class GenericUDFSetValue extends GenericUDF {
         final StructObjectInspector soi = (StructObjectInspector) sourceInspector;
         try {
             return convertStructObject(source, soi, null, matchValue);
+        } catch (HiveException e) {
+            throw e;
         } catch (Exception e) {
             throw new HiveException(e);
         }
     }
 
     private Object convertStructObject(Object node, ObjectInspector inspector, String parentFiledName,
-                                       Map<String, Object> matchValue)  {
+                                       Map<String, Object> matchValue) throws HiveException {
         if (node == null) {
             return null;
         }
@@ -72,12 +77,7 @@ public class GenericUDFSetValue extends GenericUDF {
         final int size = sfs.size();
 
 
-        final StructBox clone;
-        if (node instanceof OrcStruct) {
-            clone = new OrcStructBox((OrcStruct) node);
-        } else {
-            clone = new ListStructBox(size);
-        }
+        final StructBox clone = new ListStructBox(size);
 
         for(int i=0; i<size; i++) {
             final StructField sf = sfs.get(i);
@@ -107,12 +107,12 @@ public class GenericUDFSetValue extends GenericUDF {
         return getStandardDisplayString("set_value", children);
     }
 
-    public interface StructBox<T> {
+    public interface StructBox {
         void set(int i, Object value);
-        T get();
+        Object get();
     }
 
-    private class ListStructBox implements StructBox<List<Object>> {
+    private static class ListStructBox implements StructBox {
         private final List<Object> list;
         public ListStructBox(int size) {
             list = Arrays.asList(new Object[size]);
@@ -124,7 +124,7 @@ public class GenericUDFSetValue extends GenericUDF {
         }
 
         @Override
-        public List<Object> get() {
+        public Object get() {
             return list;
         }
     }
