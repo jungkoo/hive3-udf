@@ -42,12 +42,12 @@ public class TestGenericUDFSetValue {
             assertEquals(2, o.size());
             assertEquals(new Text("haha"), o.get(0));
             assertEquals(new IntWritable(20), o.get(1));
-//
-//            // original (값 유지 되는지 여부)
-//            List<?> i = (List<?>) input;
-//            assertEquals(2, i.size());
-//            assertEquals(new Text("haha"), i.get(0));
-//            assertEquals(new IntWritable(10), i.get(1));
+
+            // original (값 유지 되는지 여부)
+            List<?> i = (List<?>) input;
+            assertEquals(2, i.size());
+            assertEquals(new Text("haha"), i.get(0));
+            assertEquals(new IntWritable(10), i.get(1));
         }
     }
 

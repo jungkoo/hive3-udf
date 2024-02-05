@@ -3,8 +3,11 @@ package org.apache.hadoop.hive.ql.udf.generic;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.serde2.objectinspector.*;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter.TextConverter;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,30 +16,27 @@ import java.util.List;
 
 import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.PRIMITIVE;
 
-@Description(name = "set_value",
-        value = "_FUNC_(named_struct(...), key, value))",
+@Description(name = "get_value",
+        value = "_FUNC_(named_struct(...), key))",
         extended = "Example:\n"
-                + "  > SELECT _FUNC_(f, \"status.is_delete\", true) FROM src LIMIT 1;\n"
-                + "  {\"name\": \"haha\", \"status\": {\"is_delete\": true}")
-public class GenericUDFSetValue extends GenericUDF {
+                + "  > SELECT _FUNC_(f, \"status.is_delete\") FROM src LIMIT 1;\n"
+                + "  false")
+public class GenericUDFGetValue extends GenericUDF {
 
     private ObjectInspector sourceInspector;
-    private TextConverter keysConverter;
+    private PrimitiveObjectInspectorConverter.TextConverter keysConverter;
 
 
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
-        checkArgsSize(arguments, 3, 3);
+        checkArgsSize(arguments, 2, 2);
         checkArgPrimitive(arguments, 1); // KEY
-        checkArgPrimitive(arguments, 2); // NEW VALUE
         sourceInspector = arguments[0];
 
         if (sourceInspector.getCategory() == PRIMITIVE) {
             throw new UDFArgumentException("primitive is not support type.");
         }
-        keysConverter  = new TextConverter((PrimitiveObjectInspector) arguments[1]);
-
-
+        keysConverter  = new PrimitiveObjectInspectorConverter.TextConverter((PrimitiveObjectInspector) arguments[1]);
         return sourceInspector;
     }
 
@@ -48,22 +48,17 @@ public class GenericUDFSetValue extends GenericUDF {
         }
 
         String[] keys = keysConverter.convert(arguments[1].get()).toString().split("\\.");
-        Object newValue = arguments[2].get();
-
         switch (sourceInspector.getCategory()) {
             case STRUCT:
-                Object cloneSource = deepCopyList((List<Object>)source);
                 StructObjectInspector soi = (StructObjectInspector)sourceInspector;
                 Iterator<String> keyIterator = Arrays.asList(keys).iterator();
-                return setValue(soi, cloneSource, keyIterator, newValue);
+                return getValue(soi, source, keyIterator);
             default:
                 throw new HiveException("not support type : " + sourceInspector.getTypeName());
         }
     }
 
-
-
-    private Object setValue(StructObjectInspector soi, Object source, Iterator<String> keyIterator, Object newValue) {
+    private Object getValue(StructObjectInspector soi, Object source, Iterator<String> keyIterator) {
         final List<Object> sourceList = (List<Object>)source;
         final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
         final int size = sfs.size();
@@ -71,7 +66,7 @@ public class GenericUDFSetValue extends GenericUDF {
         if (keyIterator.hasNext()) {
             k = keyIterator.next();
         } else {
-            throw new RuntimeException("not found key ");
+            throw new RuntimeException("not found key");
         }
 
         for(int idx = 0; idx<size; idx++) {
@@ -84,8 +79,7 @@ public class GenericUDFSetValue extends GenericUDF {
 
             // [SUCCESS] key all match
             if (!keyIterator.hasNext()) {
-                sourceList.set(idx, newValue);
-                break; // OK
+                return sourceList.get(idx);
             }
 
             // [NEXT] more key
@@ -93,32 +87,13 @@ public class GenericUDFSetValue extends GenericUDF {
             if (!(csf instanceof StructObjectInspector)) {
                 throw new RuntimeException("children node is not StructObjectInspector Type : " + csf.getClass());
             }
-            sourceList.set(idx, setValue((StructObjectInspector)csf, sourceList.get(idx), keyIterator, newValue ));
+            return getValue((StructObjectInspector)csf, sourceList.get(idx), keyIterator);
         }
-        return source;
-    }
-
-    private List<Object> deepCopyList(List<Object> node) {
-        if (node == null) {
-            return null;
-        }
-        final int size = node.size();
-        final List<Object> clone = new ArrayList<>(size);
-        for(int i=0; i<size; i++) {
-            Object value = node.get(i);
-            if (value == null) {
-                clone.add(null);
-            } else if (value instanceof List) {
-                clone.add(deepCopyList((List<Object>)value));
-            } else {
-                clone.add(value);
-            }
-        }
-        return clone;
+        return null;
     }
 
     @Override
     public String getDisplayString(String[] children) {
-        return getStandardDisplayString("set_value", children);
+        return getStandardDisplayString("get_value", children);
     }
 }
