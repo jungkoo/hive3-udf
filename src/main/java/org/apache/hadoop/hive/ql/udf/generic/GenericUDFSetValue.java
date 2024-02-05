@@ -119,6 +119,9 @@ public class GenericUDFSetValue extends GenericUDF {
         Object get();
     }
 
+    /***
+     * ORC 포맷에서 사용되는 경우 create() 로 생성한 데이터로 세팅한다.
+     */
     private static class SettableStructBox implements StructBox {
         private final SettableStructObjectInspector inspector;
         private final Object result;
@@ -140,6 +143,9 @@ public class GenericUDFSetValue extends GenericUDF {
         }
     }
 
+    /***
+     * 기본적으로 struct 를 list-list 형태로 표현된다고 가장된다.
+     */
     private static class ListStructBox implements StructBox {
         private final List<Object> list;
         public ListStructBox(int size) {
