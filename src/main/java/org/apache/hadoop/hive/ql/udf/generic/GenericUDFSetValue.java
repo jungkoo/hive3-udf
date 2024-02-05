@@ -20,7 +20,6 @@ public class GenericUDFSetValue extends GenericUDF {
     private ObjectInspector sourceInspector;
     private TextConverter keysConverter;
 
-
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
         checkArgsSize(arguments, 3, 3);
@@ -29,10 +28,8 @@ public class GenericUDFSetValue extends GenericUDF {
         sourceInspector = arguments[0];
 
         if (sourceInspector.getCategory() != STRUCT) {
-            throw new UDFArgumentException("struct category miss! " + sourceInspector.getCategory());
-        }
-        if (!(sourceInspector instanceof StructObjectInspector)) {
-            throw new UDFArgumentException("struct type miss! " + sourceInspector.getTypeName());
+            throw new UDFArgumentException("source is not struct type : {category:"
+                    + sourceInspector.getCategory() +",typeName: "+sourceInspector.getTypeName()+"}");
         }
         keysConverter  = new TextConverter((PrimitiveObjectInspector) arguments[1]);
         return sourceInspector;
