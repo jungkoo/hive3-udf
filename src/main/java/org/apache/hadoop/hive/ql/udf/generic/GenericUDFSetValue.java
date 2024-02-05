@@ -2,6 +2,9 @@ package org.apache.hadoop.hive.ql.udf.generic;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
+import org.apache.hadoop.hive.ql.io.orc.OrcRecordUpdater;
+import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
+import org.apache.hadoop.hive.ql.io.orc.OrcStructBox;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.*;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter.TextConverter;
@@ -63,7 +66,14 @@ public class GenericUDFSetValue extends GenericUDF {
         final StructObjectInspector soi = (StructObjectInspector)inspector;
         final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
         final int size = sfs.size();
-        final List<Object> clone = Arrays.asList(new Object[size]);
+
+
+        final StructBox clone;
+        if (node instanceof OrcStruct) {
+            clone = new OrcStructBox(size);
+        } else {
+            clone = new ListStructBox(size);
+        }
 
         for(int i=0; i<size; i++) {
             final StructField sf = sfs.get(i);
@@ -78,7 +88,7 @@ public class GenericUDFSetValue extends GenericUDF {
             }
             clone.set(i, convertStructObject(value, childInspector, fullKey, matchValue));
         }
-        return clone;
+        return clone.get();
     }
 
     private String fullKey(String parentFiledName, String fieldName) {
@@ -91,5 +101,27 @@ public class GenericUDFSetValue extends GenericUDF {
     @Override
     public String getDisplayString(String[] children) {
         return getStandardDisplayString("set_value", children);
+    }
+
+    public interface StructBox<T> {
+        void set(int i, Object value);
+        T get();
+    }
+
+    private class ListStructBox implements StructBox<List<Object>> {
+        private final List<Object> list;
+        public ListStructBox(int size) {
+            list = Arrays.asList(new Object[size]);
+        }
+
+        @Override
+        public void set(int i, Object value) {
+            list.set(i, value);
+        }
+
+        @Override
+        public List<Object> get() {
+            return list;
+        }
     }
 }
