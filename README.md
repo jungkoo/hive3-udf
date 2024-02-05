@@ -29,5 +29,4 @@ CREATE TEMPORARY FUNCTION array_union as 'org.apache.hadoop.hive.ql.udf.generic.
 -- hive complex  
 CREATE TEMPORARY FUNCTION json_read as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFJsonRead';
 CREATE TEMPORARY FUNCTION set_value as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFSetValue';
-CREATE TEMPORARY FUNCTION set_value as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFGetValue';
 ```

@@ -2,17 +2,12 @@ package org.apache.hadoop.hive.ql.udf.generic;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.*;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter.TextConverter;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
-import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.PRIMITIVE;
 import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.STRUCT;
 
 @Description(name = "set_value",
@@ -50,59 +45,17 @@ public class GenericUDFSetValue extends GenericUDF {
             return null;
         }
 
-        String[] keys = keysConverter.convert(arguments[1].get()).toString().split("\\.");
-        Object newValue = arguments[2].get();
+        final String findKey = keysConverter.convert(arguments[1].get()).toString();
+        final Object newValue = arguments[2].get();
+        final Map<String, Object> matchValue = new LinkedHashMap<>();
+        matchValue.put(findKey, newValue);
 
-        StructObjectInspector soi = (StructObjectInspector)sourceInspector;
-        Iterator<String> keyIterator = Arrays.asList(keys).iterator();
-        Object convertList = convertValue(source, soi);
-        if (convertList instanceof List) {
-            return setValue(soi, (List<Object>)convertList, keyIterator, newValue);
-        } else {
-            throw new HiveException("ConvertValue is Not List !!");
-        }
+        final StructObjectInspector soi = (StructObjectInspector) sourceInspector;
+        return convertStructObject(source, soi, null, matchValue);
     }
 
-    private List<Object> setValue(StructObjectInspector soi, List<Object> sourceList, Iterator<String> keyIterator, Object newValue) throws HiveException{
-        final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
-        final int size = sfs.size();
-        final String k;
-        if (keyIterator.hasNext()) {
-            k = keyIterator.next();
-        } else {
-            throw new HiveException("not found key");
-        }
-
-        for(int idx = 0; idx<size; idx++) {
-            final StructField sf = sfs.get(idx);
-
-            // [SKIP] key match miss
-            if (!(k.equals(sf.getFieldName()))) {
-                continue;
-            }
-
-            // [SUCCESS] key all match
-            if (!keyIterator.hasNext()) {
-                sourceList.set(idx, newValue);
-                break; // OK
-            }
-
-            // [NEXT] more key
-            final ObjectInspector csf = sf.getFieldObjectInspector();
-            final Object child = sourceList.get(idx);
-            if (child == null) {
-                sourceList.set(idx, null); // null 이라면
-                break; // NULL BREAK
-            }
-            if (!(csf instanceof StructObjectInspector)) {
-                throw new HiveException("children node is not StructObjectInspector Type : " + csf.getClass());
-            }
-            sourceList.set(idx, setValue((StructObjectInspector)csf, (List<Object>)child, keyIterator, newValue));
-        }
-        return sourceList;
-    }
-    
-    private Object convertValue(Object node, ObjectInspector inspector) throws HiveException {
+    private Object convertStructObject(Object node, ObjectInspector inspector, String parentFiledName,
+                                       Map<String, Object> matchValue)  {
         if (node == null) {
             return null;
         }
@@ -118,10 +71,24 @@ public class GenericUDFSetValue extends GenericUDF {
         for(int i=0; i<size; i++) {
             final StructField sf = sfs.get(i);
             final ObjectInspector childInspector = sf.getFieldObjectInspector();
-            final Object value = soi.getStructFieldData(node, sf);
-            clone.set(i, convertValue(value, childInspector));
+            final String fullKey = fullKey(parentFiledName, sf.getFieldName());
+            final Object value;
+
+            if (matchValue.containsKey(fullKey)) { // 맵칭된 값과 동일
+                value = matchValue.get(fullKey);
+            } else {
+                value = soi.getStructFieldData(node, sf);
+            }
+            clone.set(i, convertStructObject(value, childInspector, fullKey, matchValue));
         }
         return clone;
+    }
+
+    private String fullKey(String parentFiledName, String fieldName) {
+        if (parentFiledName == null || parentFiledName.isEmpty()) {
+            return fieldName;
+        }
+        return String.format("%s.%s", parentFiledName, fieldName);
     }
 
     @Override
