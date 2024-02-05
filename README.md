@@ -34,6 +34,10 @@ CREATE TEMPORARY FUNCTION set_value as 'org.apache.hadoop.hive.ql.udf.generic.Ge
 
 ### set_value
 
+struct 타입의 특정 값을 변경해준다.
+
+만약, 찾고자 하는 key 가 없다면 무시된다
+
 ```console
 beeline> CREATE TEMPORARY FUNCTION set_value as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFSetValue';
 beeline> create temporary table sample as
@@ -61,5 +65,4 @@ beeline> select f1, set_value(f1, 'info.cnt', 2, 'name', 'dooly') as f2 from sam
 | {"name":"gildong","age":18,"info":{"city":"seoul","cnt":1}} | {"name":"dooly","age":18,"info":{"city":"seoul","cnt":2}} |
 +----------------------------------------------------+----------------------------------------------------+
 1 row selected (0.077 seconds)
-
 ```
