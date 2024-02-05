@@ -5,8 +5,8 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFSetValue;
 public class OrcStructBox implements GenericUDFSetValue.StructBox<OrcStruct> {
     final private OrcStruct orcStruct;
 
-    public OrcStructBox(int size) {
-        orcStruct = new OrcStruct(size);
+    public OrcStructBox(OrcStruct orcStruct) {
+        this.orcStruct = orcStruct;
     }
     @Override
     public void set(int i, Object value) {

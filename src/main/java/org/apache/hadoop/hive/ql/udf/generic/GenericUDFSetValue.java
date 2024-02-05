@@ -51,7 +51,11 @@ public class GenericUDFSetValue extends GenericUDF {
         matchValue.put(findKey, newValue);
 
         final StructObjectInspector soi = (StructObjectInspector) sourceInspector;
-        return convertStructObject(source, soi, null, matchValue);
+        try {
+            return convertStructObject(source, soi, null, matchValue);
+        } catch (Exception e) {
+            throw new HiveException(e);
+        }
     }
 
     private Object convertStructObject(Object node, ObjectInspector inspector, String parentFiledName,
@@ -70,7 +74,7 @@ public class GenericUDFSetValue extends GenericUDF {
 
         final StructBox clone;
         if (node instanceof OrcStruct) {
-            clone = new OrcStructBox(size);
+            clone = new OrcStructBox((OrcStruct) node);
         } else {
             clone = new ListStructBox(size);
         }
