@@ -29,7 +29,7 @@ public class TestGenericUDFSetValue {
             udf.initialize(arguments);
 
             // {"name": "haha", "age", 10} --> {"name": "haha", "age", 20}
-            Object input = asList(new Text("haha"), new IntWritable(10));
+            List<?> input = asList(new Text("haha"), new IntWritable(10));
             Object res = udf.evaluate(new GenericUDF.DeferredObject[]{
                     new GenericUDF.DeferredJavaObject(input),
                     new GenericUDF.DeferredJavaObject(new Text("age")),
@@ -44,10 +44,9 @@ public class TestGenericUDFSetValue {
             assertEquals(new IntWritable(20), o.get(1));
 
             // original (값 유지 되는지 여부)
-            List<?> i = (List<?>) input;
-            assertEquals(2, i.size());
-            assertEquals(new Text("haha"), i.get(0));
-            assertEquals(new IntWritable(10), i.get(1));
+            assertEquals(2, input.size());
+            assertEquals(new Text("haha"), input.get(0));
+            assertEquals(new IntWritable(10), input.get(1)); // -- 값이 변경되도 기존 object 는 유지되어야한다.
         }
     }
 
@@ -79,7 +78,8 @@ public class TestGenericUDFSetValue {
 
             // {"name": "haha", "age", 10, "address": {"city": "new york", "is_asia", false}}
             // {"name": "haha", "age", 10, "address": {"city": "seoul", "is_asia", true}}
-            Object input = asList(new Text("haha"), new IntWritable(10), asList(new Text("new york"), new BooleanWritable(false)));
+            Object input = asList(new Text("haha"), new IntWritable(10),
+                    asList(new Text("new york"), new BooleanWritable(false)));
             Object res1 = udf.evaluate(new GenericUDF.DeferredObject[]{
                     new GenericUDF.DeferredJavaObject(input),
                     new GenericUDF.DeferredJavaObject(new Text("address.city")),

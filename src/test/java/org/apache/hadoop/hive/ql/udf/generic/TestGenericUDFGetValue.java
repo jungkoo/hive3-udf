@@ -63,13 +63,14 @@ public class TestGenericUDFGetValue {
 
             // {"name": "haha", "age", 10, "address": {"city": "new york", "is_asia", false}}
             // address.city -> new york
-            Object input = asList(new Text("haha"), new IntWritable(10), asList(new Text("new york"), new BooleanWritable(false)));
+            Object input = asList(new Text("haha"), new IntWritable(10),
+                    asList(new Text("new york"), new BooleanWritable(false)));
             Object res = udf.evaluate(new GenericUDF.DeferredObject[]{
                     new GenericUDF.DeferredJavaObject(input),
                     new GenericUDF.DeferredJavaObject(new Text("address.city"))});
 
             assertTrue(res instanceof Text);
-            assertEquals("new york", ((Text)res).toString());
+            assertEquals("new york", res.toString());
         }
 
     }
