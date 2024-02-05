@@ -2,6 +2,7 @@ package org.apache.hadoop.hive.ql.udf.generic;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
+import org.apache.hadoop.hive.ql.io.orc.OrcStruct;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.*;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
@@ -52,7 +53,7 @@ public class GenericUDFSetValue extends GenericUDF {
         final String findKey = keysConverter.convert(arguments[1].get()).toString();
         final Object newValue = arguments[2].get();
         final Map<String, Object> matchValue = new LinkedHashMap<>();
-        matchValue.put(findKey, newValue);
+        matchValue.put(findKey.toLowerCase(), newValue);
 
         final StructObjectInspector soi = (StructObjectInspector) sourceInspector;
         try {
@@ -76,9 +77,7 @@ public class GenericUDFSetValue extends GenericUDF {
         final StructObjectInspector soi = (StructObjectInspector)inspector;
         final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
         final int size = sfs.size();
-
-
-        final StructBox clone = new ListStructBox(size);
+        final StructBox clone = createStructBox(soi);
 
         for(int i=0; i<size; i++) {
             final StructField sf = sfs.get(i);
@@ -86,8 +85,8 @@ public class GenericUDFSetValue extends GenericUDF {
             final String fullKey = fullKey(parentFiledName, sf.getFieldName());
             final Object value;
 
-            if (matchValue.containsKey(fullKey)) { // 맵칭된 값과 동일
-                value = matchValue.get(fullKey);
+            if (matchValue.containsKey(fullKey.toLowerCase())) { // 맵칭된 값과 동일
+                value = matchValue.get(fullKey.toLowerCase());
             } else {
                 value = soi.getStructFieldData(node, sf);
             }
@@ -108,9 +107,37 @@ public class GenericUDFSetValue extends GenericUDF {
         return getStandardDisplayString("set_value", children);
     }
 
+    private static StructBox createStructBox(StructObjectInspector soi) {
+        if (soi instanceof SettableStructObjectInspector) {
+            return new SettableStructBox((SettableStructObjectInspector)soi);
+        } else {
+            return new ListStructBox(soi.getAllStructFieldRefs().size());
+        }
+    }
     public interface StructBox {
         void set(int i, Object value);
         Object get();
+    }
+
+    private static class SettableStructBox implements StructBox {
+        private final SettableStructObjectInspector inspector;
+        private final Object result;
+        private final List<? extends StructField> fields;
+
+        public SettableStructBox(SettableStructObjectInspector inspector) {
+            this.inspector = inspector;
+            this.result = inspector.create();
+            this.fields = inspector.getAllStructFieldRefs();
+        }
+        @Override
+        public void set(int i, Object value) {
+            this.inspector.setStructFieldData(result, fields.get(i), value);
+        }
+
+        @Override
+        public Object get() {
+            return result;
+        }
     }
 
     private static class ListStructBox implements StructBox {
