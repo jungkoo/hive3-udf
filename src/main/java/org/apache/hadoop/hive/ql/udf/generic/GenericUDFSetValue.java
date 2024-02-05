@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.PRIMITIVE;
+import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.STRUCT;
 
 @Description(name = "set_value",
         value = "_FUNC_(named_struct(...), key, value))",
@@ -31,12 +32,10 @@ public class GenericUDFSetValue extends GenericUDF {
         checkArgPrimitive(arguments, 2); // NEW VALUE
         sourceInspector = arguments[0];
 
-        if (sourceInspector.getCategory() == PRIMITIVE) {
-            throw new UDFArgumentException("primitive is not support type.");
+        if (sourceInspector.getCategory() != STRUCT) {
+            throw new UDFArgumentException("struct type only support! " + sourceInspector.getTypeName());
         }
         keysConverter  = new TextConverter((PrimitiveObjectInspector) arguments[1]);
-
-
         return sourceInspector;
     }
 
@@ -49,21 +48,15 @@ public class GenericUDFSetValue extends GenericUDF {
 
         String[] keys = keysConverter.convert(arguments[1].get()).toString().split("\\.");
         Object newValue = arguments[2].get();
-
-        switch (sourceInspector.getCategory()) {
-            case STRUCT:
-                Object cloneSource = deepCopyList((List<Object>)source);
-                StructObjectInspector soi = (StructObjectInspector)sourceInspector;
-                Iterator<String> keyIterator = Arrays.asList(keys).iterator();
-                return setValue(soi, cloneSource, keyIterator, newValue);
-            default:
-                throw new HiveException("not support type : " + sourceInspector.getTypeName());
-        }
+        Object cloneSource = deepCopyList((List<Object>)source);
+        StructObjectInspector soi = (StructObjectInspector)sourceInspector;
+        Iterator<String> keyIterator = Arrays.asList(keys).iterator();
+        return setValue(soi, cloneSource, keyIterator, newValue);
     }
 
 
 
-    private Object setValue(StructObjectInspector soi, Object source, Iterator<String> keyIterator, Object newValue) {
+    private Object setValue(StructObjectInspector soi, Object source, Iterator<String> keyIterator, Object newValue) throws HiveException{
         final List<Object> sourceList = (List<Object>)source;
         final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
         final int size = sfs.size();
@@ -71,7 +64,7 @@ public class GenericUDFSetValue extends GenericUDF {
         if (keyIterator.hasNext()) {
             k = keyIterator.next();
         } else {
-            throw new RuntimeException("not found key ");
+            throw new HiveException("not found key ");
         }
 
         for(int idx = 0; idx<size; idx++) {
@@ -90,10 +83,15 @@ public class GenericUDFSetValue extends GenericUDF {
 
             // [NEXT] more key
             final ObjectInspector csf = sf.getFieldObjectInspector();
-            if (!(csf instanceof StructObjectInspector)) {
-                throw new RuntimeException("children node is not StructObjectInspector Type : " + csf.getClass());
+            final Object child = sourceList.get(idx);
+            if (child == null) {
+                sourceList.set(idx, null); // null 이라면
+                break; // NULL BREAK
             }
-            sourceList.set(idx, setValue((StructObjectInspector)csf, sourceList.get(idx), keyIterator, newValue ));
+            if (!(csf instanceof StructObjectInspector)) {
+                throw new HiveException("children node is not StructObjectInspector Type : " + csf.getClass());
+            }
+            sourceList.set(idx, setValue((StructObjectInspector)csf, child, keyIterator, newValue));
         }
         return source;
     }

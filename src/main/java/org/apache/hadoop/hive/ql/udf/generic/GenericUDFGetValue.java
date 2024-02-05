@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.PRIMITIVE;
+import static org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category.STRUCT;
 
 @Description(name = "get_value",
         value = "_FUNC_(named_struct(...), key))",
@@ -33,8 +34,8 @@ public class GenericUDFGetValue extends GenericUDF {
         checkArgPrimitive(arguments, 1); // KEY
         sourceInspector = arguments[0];
 
-        if (sourceInspector.getCategory() == PRIMITIVE) {
-            throw new UDFArgumentException("primitive is not support type.");
+        if (sourceInspector.getCategory() != STRUCT) {
+            throw new UDFArgumentException("struct type only support! " + sourceInspector.getTypeName());
         }
         keysConverter  = new PrimitiveObjectInspectorConverter.TextConverter((PrimitiveObjectInspector) arguments[1]);
         return sourceInspector;
@@ -46,19 +47,13 @@ public class GenericUDFGetValue extends GenericUDF {
         if (source == null) {
             return null;
         }
-
-        String[] keys = keysConverter.convert(arguments[1].get()).toString().split("\\.");
-        switch (sourceInspector.getCategory()) {
-            case STRUCT:
-                StructObjectInspector soi = (StructObjectInspector)sourceInspector;
-                Iterator<String> keyIterator = Arrays.asList(keys).iterator();
-                return getValue(soi, source, keyIterator);
-            default:
-                throw new HiveException("not support type : " + sourceInspector.getTypeName());
-        }
+        final String[] keys = keysConverter.convert(arguments[1].get()).toString().split("\\.");
+        final StructObjectInspector soi = (StructObjectInspector)sourceInspector;
+        final Iterator<String> keyIterator = Arrays.asList(keys).iterator();
+        return getValue(soi, source, keyIterator);
     }
 
-    private Object getValue(StructObjectInspector soi, Object source, Iterator<String> keyIterator) {
+    private Object getValue(StructObjectInspector soi, Object source, Iterator<String> keyIterator) throws HiveException{
         final List<Object> sourceList = (List<Object>)source;
         final List<? extends StructField> sfs = soi.getAllStructFieldRefs();
         final int size = sfs.size();
@@ -66,7 +61,7 @@ public class GenericUDFGetValue extends GenericUDF {
         if (keyIterator.hasNext()) {
             k = keyIterator.next();
         } else {
-            throw new RuntimeException("not found key");
+            throw new HiveException("not found key");
         }
 
         for(int idx = 0; idx<size; idx++) {
@@ -85,7 +80,7 @@ public class GenericUDFGetValue extends GenericUDF {
             // [NEXT] more key
             final ObjectInspector csf = sf.getFieldObjectInspector();
             if (!(csf instanceof StructObjectInspector)) {
-                throw new RuntimeException("children node is not StructObjectInspector Type : " + csf.getClass());
+                throw new HiveException("children node is not StructObjectInspector Type : " + csf.getClass());
             }
             return getValue((StructObjectInspector)csf, sourceList.get(idx), keyIterator);
         }
