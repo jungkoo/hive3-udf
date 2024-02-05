@@ -29,13 +29,14 @@ public class GenericUDFSetValue extends GenericUDF {
         checkArgPrimitive(arguments, 1); // KEY
         checkArgPrimitive(arguments, 2); // NEW VALUE
         sourceInspector = arguments[0];
+        ObjectInspector newValueInspector = arguments[2];
 
         if (sourceInspector.getCategory() != STRUCT) {
             throw new UDFArgumentException("source is not struct type : {category:"
                     + sourceInspector.getCategory() +",typeName: "+sourceInspector.getTypeName()+"}");
         }
-        if (arguments[3].getCategory() != PRIMITIVE) {
-            throw new UDFArgumentException("new value is not primitive type : " + arguments[3].getTypeName());
+        if (newValueInspector.getCategory() != PRIMITIVE) {
+            throw new UDFArgumentException("new value is not primitive type : " + newValueInspector.getTypeName());
         }
         keysConverter  = new TextConverter((PrimitiveObjectInspector) arguments[1]);
         return sourceInspector;
