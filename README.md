@@ -25,4 +25,44 @@ CREATE TEMPORARY FUNCTION array_min as 'org.apache.hadoop.hive.ql.udf.generic.Ge
 CREATE TEMPORARY FUNCTION array_remove as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFArrayRemove';
 CREATE TEMPORARY FUNCTION array_slice as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFArraySlice';
 CREATE TEMPORARY FUNCTION array_union as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFArrayUnion';
+
+-- hive complex  
+CREATE TEMPORARY FUNCTION json_read as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFJsonRead';
+CREATE TEMPORARY FUNCTION set_value as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFSetValue';
+```
+
+
+### set_value
+
+struct 타입의 특정 값을 변경해준다.
+
+만약, 찾고자 하는 key 가 없다면 무시된다
+
+```console
+beeline> CREATE TEMPORARY FUNCTION set_value as 'org.apache.hadoop.hive.ql.udf.generic.GenericUDFSetValue';
+beeline> create temporary table sample as
+ select named_struct(
+    'name', 'gildong', 
+    'age', 18, 
+    'info', named_struct(
+       'city', 'seoul',
+       'cnt', 1 
+    )) as f1
+;
+
+beeline> select f1, set_value(f1, 'info.cnt', 2) as f2 from sample;
++----------------------------------------------------+----------------------------------------------------+
+|                         f1                         |                         f2                         |
++----------------------------------------------------+----------------------------------------------------+
+| {"name":"gildong","age":18,"info":{"city":"seoul","cnt":1}} | {"name":"gildong","age":18,"info":{"city":"seoul","cnt":2}} |
++----------------------------------------------------+----------------------------------------------------+
+1 row selected (0.112 seconds)
+
+beeline> select f1, set_value(f1, 'info.cnt', 2, 'name', 'dooly') as f2 from sample;
++----------------------------------------------------+----------------------------------------------------+
+|                         f1                         |                         f2                         |
++----------------------------------------------------+----------------------------------------------------+
+| {"name":"gildong","age":18,"info":{"city":"seoul","cnt":1}} | {"name":"dooly","age":18,"info":{"city":"seoul","cnt":2}} |
++----------------------------------------------------+----------------------------------------------------+
+1 row selected (0.077 seconds)
 ```
