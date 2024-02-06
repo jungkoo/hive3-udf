@@ -1,11 +1,12 @@
 package org.apache.hadoop.hive.ql.udf.generic;
 
+import groovy.transform.EqualsAndHashCode;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.*;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.*;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter.TextConverter;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 import java.util.*;
@@ -23,6 +24,9 @@ public class GenericUDFSetValue extends GenericUDF {
     private ObjectInspector sourceInspector;
     private TextConverter keysConverter;
 
+    private transient Map<String, ValueAndInspector> matchValue;
+    private transient List<ObjectInspector> valueObjectInspector;
+
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
         int numFields = arguments.length;
@@ -39,19 +43,22 @@ public class GenericUDFSetValue extends GenericUDF {
         }
 
         // key, value
+        matchValue = new LinkedHashMap<>();
+        valueObjectInspector = new ArrayList<>(numFields/2);
         for (int f = 1; f < numFields; f+=2) {
             ObjectInspector ki = arguments[f];
-            ObjectInspector vi = arguments[f+1];
+            ObjectInspector vi = arguments[f + 1];
 
-            if ( ki.getCategory() != PRIMITIVE || TypeInfoFactory.stringTypeInfo.getTypeName() != ki.getTypeName()) {
+            if (ki.getCategory() != PRIMITIVE || TypeInfoFactory.stringTypeInfo.getTypeName() != ki.getTypeName()) {
                 throw new UDFArgumentException("Find Key is not string type : " + ki.getTypeName());
             }
-            if ( vi.getCategory() != PRIMITIVE) {
+            if (vi.getCategory() != PRIMITIVE) {
                 throw new UDFArgumentException("New Value is not Primitive type : " + vi.getTypeName());
             }
+            valueObjectInspector.add(vi); // 타입 변경 오류 해결을 위해 inspector 를 담아둠
         }
-
         keysConverter  = new TextConverter(PrimitiveObjectInspectorFactory.writableStringObjectInspector);
+
         return sourceInspector;
     }
 
@@ -63,11 +70,12 @@ public class GenericUDFSetValue extends GenericUDF {
         }
 
         final int numFields = arguments.length;
-        final Map<String, Object> matchValue = new LinkedHashMap<>();
+        matchValue = new LinkedHashMap<>();
         for (int f = 1; f < numFields; f+=2) {
             final String findKey = keysConverter.convert(arguments[f].get()).toString();
             final Object newValue = arguments[f + 1].get();
-            matchValue.put(findKey.toLowerCase(), newValue);
+            final ValueAndInspector vi = new ValueAndInspector(newValue, valueObjectInspector.get(f/2));
+            matchValue.put(findKey.toLowerCase(), vi);
         }
 
         try {
@@ -81,7 +89,7 @@ public class GenericUDFSetValue extends GenericUDF {
     }
 
     private Object convertStructObject(Object node, ObjectInspector inspector, String parentFiledName,
-                                       Map<String, Object> matchValue) throws HiveException {
+                                       Map<String, ValueAndInspector> matchValue) throws HiveException {
         if (node == null) {
             return null;
         }
@@ -101,8 +109,15 @@ public class GenericUDFSetValue extends GenericUDF {
             final Object value;
 
             if (matchValue.containsKey(fullKey.toLowerCase())) { // 맵칭된 값과 동일
-                value = matchValue.get(fullKey.toLowerCase());
-                if (value != null && sf.getFieldObjectInspector().getCategory() != PRIMITIVE) {
+                final ValueAndInspector v = matchValue.get(fullKey.toLowerCase());
+                final Object newValue = v.getValue();
+                final ObjectInspector newValueInspector  = v.getInspector();
+
+                if (sf.getFieldObjectInspector().getCategory() == PRIMITIVE) {
+                    final ObjectInspectorConverters.Converter converter = ObjectInspectorConverters.getConverter(
+                            newValueInspector, sf.getFieldObjectInspector());
+                    value = converter.convert(newValue); // update new value
+                } else {
                     throw new HiveException(fullKey + " type miss (support primitive only) : "
                             + sf.getFieldObjectInspector().getTypeName());
                 }
@@ -179,6 +194,24 @@ public class GenericUDFSetValue extends GenericUDF {
         @Override
         public Object get() {
             return list;
+        }
+    }
+
+    @EqualsAndHashCode
+    private class ValueAndInspector {
+        private Object value;
+        private ObjectInspector inspector;
+        public ValueAndInspector(Object value, ObjectInspector inspector) {
+            this.value = value;
+            this.inspector = inspector;
+        }
+
+        public Object getValue() {
+            return value;
+        }
+
+        public ObjectInspector getInspector() {
+            return inspector;
         }
     }
 }

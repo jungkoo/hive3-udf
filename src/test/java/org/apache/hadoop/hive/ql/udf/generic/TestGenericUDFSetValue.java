@@ -71,8 +71,10 @@ public class TestGenericUDFSetValue {
                             )
 
                     ),
-                    PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-                    PrimitiveObjectInspectorFactory.writableStringObjectInspector
+                    PrimitiveObjectInspectorFactory.writableStringObjectInspector, // key   : address.city
+                    PrimitiveObjectInspectorFactory.writableStringObjectInspector, // value : new york -> seoul
+                    PrimitiveObjectInspectorFactory.writableStringObjectInspector, // key   : address.is_asia
+                    PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,// value : false -> true
             };
             udf.initialize(arguments);
 
@@ -80,18 +82,17 @@ public class TestGenericUDFSetValue {
             // {"name": "haha", "age", 10, "address": {"city": "seoul", "is_asia", true}}
             Object input = asList(new Text("haha"), new IntWritable(10),
                     asList(new Text("new york"), new BooleanWritable(false)));
-            Object res1 = udf.evaluate(new GenericUDF.DeferredObject[]{
+            Object res = udf.evaluate(new GenericUDF.DeferredObject[]{
                     new GenericUDF.DeferredJavaObject(input),
                     new GenericUDF.DeferredJavaObject(new Text("address.city")),
-                    new GenericUDF.DeferredJavaObject(new Text("seoul"))});
-            Object res2 = udf.evaluate(new GenericUDF.DeferredObject[]{
-                    new GenericUDF.DeferredJavaObject(res1),
+                    new GenericUDF.DeferredJavaObject(new Text("seoul")),
                     new GenericUDF.DeferredJavaObject(new Text("address.is_asia")),
-                    new GenericUDF.DeferredJavaObject(new BooleanWritable(true))});
+                    new GenericUDF.DeferredJavaObject(new BooleanWritable(true))
+            });
 
             // result
-            assertTrue(res2 instanceof List<?>);
-            List<?> o = (List<?>) res2;
+            assertTrue(res instanceof List<?>);
+            List<?> o = (List<?>) res;
             assertEquals(3, o.size());
             assertEquals(new Text("haha"), o.get(0));
             assertEquals(new IntWritable(10), o.get(1));
